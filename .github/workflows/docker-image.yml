@@ -26,16 +26,11 @@ jobs:
         run: echo "IMAGE_TAG=${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ github.sha }}" >> $GITHUB_ENV
 
       - name: Build Docker Image
-        id: build-image
         run: |
           docker build \
             --build-arg BOT_TOKEN=${{ secrets.BOT_TOKEN }} \
             --build-arg GROQ_API_KEY=${{ secrets.GROQ_API_KEY }} \
             -t $IMAGE_TAG .  # Use the IMAGE_TAG from the environment variable
-
-      - name: Save Image Tag
-        id: save-tag
-        run: echo "IMAGE_TAG=${{ env.IMAGE_TAG }}" >> $GITHUB_ENV
 
   push:
     name: 'Push Docker Image'
@@ -52,4 +47,5 @@ jobs:
 
       - name: Push Docker Image
         run: |
-          docker push ${{ env.IMAGE_TAG }}  # Use the IMAGE_TAG from the environment variable
+          echo "Pushing image: $IMAGE_TAG"  # Log the image tag for debugging
+          docker push $IMAGE_TAG  # Use the IMAGE_TAG from the environment variable
