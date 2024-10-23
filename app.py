@@ -7,6 +7,10 @@ import random
 import os
 from groq import Groq
 from typing import Dict, List, Tuple
+"""
+from dotenv import load_dotenv
+load_dotenv(override=True)
+"""
 # States for conversation
 INITIAL_CHECKIN, FEELING_SCALE, DAILY_REFLECTION, SONG_RECOMMENDATION, ONGOING_CONVERSATION = range(5)
 
@@ -17,7 +21,6 @@ class TherapyBot:
     def __init__(self):
         groq_api_key = os.getenv('GROQ_API_KEY')
         self.groq_client = Groq(api_key=groq_api_key)
-        print(groq_api_key)
         # Song recommendations based on moods
         # Song recommendations with URLs
         self.song_recommendations = {
