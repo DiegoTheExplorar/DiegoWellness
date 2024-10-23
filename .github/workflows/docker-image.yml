@@ -1,0 +1,39 @@
+name: Build and Push to ACR
+
+on:
+  push:
+    branches: 
+      - 'main' 
+  
+jobs:  
+  build-and-push:  
+    name: 'Build and Push Docker Image' 
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout the repository
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Step 2: Docker login to Azure Container Registry
+      - name: Docker Login
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      # Step 3: Build Docker Image and Tag with Git SHA
+      - name: Build Docker Image
+        run: |
+          IMAGE_TAG=${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ github.sha }}
+          docker build \
+            --build-arg BOT_TOKEN=${{ secrets.BOT_TOKEN }} \
+            --build-arg GROQ_API_KEY=${{ secrets.GROQ_API_KEY }} \
+            -t $IMAGE_TAG .
+
+      # Step 4: Push Docker Image to ACR
+      - name: Push Docker Image
+        run: |
+          IMAGE_TAG=${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ github.sha }}
+          docker push $IMAGE_TAG
