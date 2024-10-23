@@ -12,18 +12,22 @@ jobs:
 
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Log in to ACR
       run: |
         echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} --username ${{ secrets.ACR_USERNAME }} --password-stdin
     
+    - name: Set image tag
+      id: vars
+      run: echo "IMAGE_TAG=my-image-name:$(date +%s)" >> $GITHUB_ENV
+
     - name: Build the Docker image
       run: |
         docker build \
           --build-arg BOT_TOKEN=${{ secrets.BOT_TOKEN }} \
           --build-arg GROQ_API_KEY=${{ secrets.GROQ_API_KEY }} \
-          . --file Dockerfile --tag my-image-name:$(date +%s)
+          . --file Dockerfile --tag ${{ env.IMAGE_TAG }}
 
     - name: Push the Docker image to ACR
       run: |
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:$(date +%s)
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/${{ env.IMAGE_TAG }}
