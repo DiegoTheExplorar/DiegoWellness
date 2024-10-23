@@ -9,7 +9,7 @@ COPY requirements.txt .
 
 # Install dependencies (cache layer when requirements.txt doesn't change)
 RUN pip install --no-cache-dir -r requirements.txt
-
+RUN pip install python-telegram-bot[job-queue]
 # Copy the rest of the application code
 COPY . .
 
