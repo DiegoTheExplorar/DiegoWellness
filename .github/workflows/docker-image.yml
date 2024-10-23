@@ -4,18 +4,22 @@ on:
   push:
     branches: [ "main" ]
   pull_request:
-    branches: [ "main" ]
+    branches: [ "main" ]  
 
-jobs:
-  build:
+jobs:  
+  build:  
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
 
+    # Define IMAGE_TAG once for consistent tagging
+    - name: Set IMAGE_TAG
+      run: echo "IMAGE_TAG=my-image-name:$(date +%s)" >> $GITHUB_ENV
+
     # Build the Docker image
     - name: Build the Docker image
-      run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+      run: docker build . --file Dockerfile --tag my-image-name:${{ env.IMAGE_TAG }}
 
     # Log in to Azure Container Registry (ACR)
     - name: Log in to Azure Container Registry
@@ -25,19 +29,30 @@ jobs:
     # Tag and Push Docker image to ACR
     - name: Tag and Push Docker Image
       run: |
-        IMAGE_TAG=my-image-name:$(date +%s)
-        docker tag my-image-name:$(date +%s) ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_TAG
-        docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_TAG
+        docker tag my-image-name:${{ env.IMAGE_TAG }} ${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ env.IMAGE_TAG }}
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ env.IMAGE_TAG }}
 
-    # Deploy Docker image to Azure Web App
-    - name: Deploy to Azure Web App
+    # Deploy Docker image to Azure Container App
+    - name: Deploy to Azure Container App
       run: |
         az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
-        az webapp config container set \
-          --name ${{ secrets.AZURE_WEBAPP_NAME }} \
-          --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
-          --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_TAG \
-          --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }} \
-          --docker-registry-server-user ${{ secrets.ACR_USERNAME }} \
-          --docker-registry-server-password ${{ secrets.ACR_PASSWORD }}
 
+        # If the container app already exists, use `update`, otherwise use `create`
+        az containerapp update \
+          --name ${{ secrets.AZURE_CONTAINER_APP_NAME }} \
+          --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+          --image ${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ env.IMAGE_TAG }} \
+          --registry-server ${{ secrets.ACR_LOGIN_SERVER }} \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }} || \
+
+        az containerapp create \
+          --name ${{ secrets.AZURE_CONTAINER_APP_NAME }} \
+          --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+          --environment ${{ secrets.AZURE_CONTAINER_ENV_NAME }} \
+          --image ${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ env.IMAGE_TAG }} \
+          --registry-server ${{ secrets.ACR_LOGIN_SERVER }} \
+          --registry-username ${{ secrets.ACR_USERNAME }} \
+          --registry-password ${{ secrets.ACR_PASSWORD }} \
+          --target-port 80 \
+          --ingress 'external'
