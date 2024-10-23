@@ -1,0 +1,36 @@
+name: Build and Push to ACR
+
+on:
+  push:
+    branches:
+      - 'main'
+
+jobs:
+  build:
+    name: 'Build and Push to ACR'
+    runs-on: ubuntu-latest
+
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Docker Login
+        uses: azure/docker-login@v1
+        with:
+          login-server: ${{ secrets.ACR_LOGIN_SERVER }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Build and Push to ACR
+        uses: docker/build-push-action@v2
+        with:
+          push: true
+          tags: ${{ secrets.ACR_LOGIN_SERVER }}/my-image-name:${{ github.sha }}  # Dynamic tag using commit SHA
+          build-args: |
+            BOT_TOKEN=${{ secrets.BOT_TOKEN }}
+            GROQ_API_KEY=${{ secrets.GROQ_API_KEY }}
+          file: Dockerfile
