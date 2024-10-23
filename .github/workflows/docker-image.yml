@@ -1,4 +1,4 @@
-name: Docker Image CI
+name: Docker Image CI/CD to Azure
 
 on:
   push:
@@ -7,12 +7,37 @@ on:
     branches: [ "main" ]
 
 jobs:
-
   build:
-
     runs-on: ubuntu-latest
 
     steps:
     - uses: actions/checkout@v4
+
+    # Build the Docker image
     - name: Build the Docker image
       run: docker build . --file Dockerfile --tag my-image-name:$(date +%s)
+
+    # Log in to Azure Container Registry (ACR)
+    - name: Log in to Azure Container Registry
+      run: |
+        echo "${{ secrets.ACR_PASSWORD }}" | docker login ${{ secrets.ACR_LOGIN_SERVER }} -u ${{ secrets.ACR_USERNAME }} --password-stdin
+
+    # Tag and Push Docker image to ACR
+    - name: Tag and Push Docker Image
+      run: |
+        IMAGE_TAG=my-image-name:$(date +%s)
+        docker tag my-image-name:$(date +%s) ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_TAG
+        docker push ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_TAG
+
+    # Deploy Docker image to Azure Web App
+    - name: Deploy to Azure Web App
+      run: |
+        az login --service-principal -u ${{ secrets.AZURE_CLIENT_ID }} -p ${{ secrets.AZURE_CLIENT_SECRET }} --tenant ${{ secrets.AZURE_TENANT_ID }}
+        az webapp config container set \
+          --name ${{ secrets.AZURE_WEBAPP_NAME }} \
+          --resource-group ${{ secrets.AZURE_RESOURCE_GROUP }} \
+          --docker-custom-image-name ${{ secrets.ACR_LOGIN_SERVER }}/$IMAGE_TAG \
+          --docker-registry-server-url https://${{ secrets.ACR_LOGIN_SERVER }} \
+          --docker-registry-server-user ${{ secrets.ACR_USERNAME }} \
+          --docker-registry-server-password ${{ secrets.ACR_PASSWORD }}
+
