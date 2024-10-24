@@ -1,0 +1,9 @@
+from enum import IntEnum
+
+class States(IntEnum):
+    LANGUAGE_SELECTION = 0
+    INITIAL_CHECKIN = 1
+    FEELING_SCALE = 2
+    DAILY_REFLECTION = 3
+    SONG_RECOMMENDATION = 4
+    ONGOING_CONVERSATION = 5
