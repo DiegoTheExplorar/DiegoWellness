@@ -7,12 +7,12 @@ import random
 import os
 from groq import Groq
 from typing import Dict, List, Tuple
-"""
+
 from dotenv import load_dotenv
 load_dotenv(override=True)
-"""
+
 # States for conversation
-INITIAL_CHECKIN, FEELING_SCALE, DAILY_REFLECTION, SONG_RECOMMENDATION, ONGOING_CONVERSATION = range(5)
+LANGUAGE_SELECTION,INITIAL_CHECKIN, FEELING_SCALE, DAILY_REFLECTION, SONG_RECOMMENDATION, ONGOING_CONVERSATION = range(6)
 
 # Dictionary to store user data
 user_data = {}
@@ -21,8 +21,13 @@ class TherapyBot:
     def __init__(self):
         groq_api_key = os.getenv('GROQ_API_KEY')
         self.groq_client = Groq(api_key=groq_api_key)
-        # Song recommendations based on moods
-        # Song recommendations with URLs
+
+        self.supported_languages = {
+            'english': '🇬🇧 English',
+            'spanish': '🇪🇸 Español',
+            'french': '🇫🇷 Français'
+        }
+
         self.song_recommendations = {
             'sad': [
                 ('The Sun Will Come Up, the Seasons Will Change', 'Nina Nesbitt', 'https://open.spotify.com/track/46fCdWJ7Ddo2QffVE4zbRu?si=bdad68fa24d0423a'),
@@ -42,6 +47,14 @@ class TherapyBot:
         }
 
 
+    def create_language_keyboard(self) -> InlineKeyboardMarkup:
+        """Create an inline keyboard for language selection."""
+        keyboard = [
+            [InlineKeyboardButton(display_name, callback_data=f"lang_{lang_code}")]
+            for lang_code, display_name in self.supported_languages.items()
+        ]
+        return InlineKeyboardMarkup(keyboard)
+    
     def create_mood_scale_keyboard(self) -> InlineKeyboardMarkup:
         """Create an inline keyboard with mood ratings and emojis."""
         keyboard = [
@@ -57,19 +70,22 @@ class TherapyBot:
                 InlineKeyboardButton("😃 7", callback_data="mood_7"),
                 InlineKeyboardButton("😄 8", callback_data="mood_8"),
                 InlineKeyboardButton("😁 9", callback_data="mood_9"),
-                InlineKeyboardButton("🌟 10", callback_data="mood_10"),
+                InlineKeyboardButton("🤩 10", callback_data="mood_10"),
             ]
         ]
         return InlineKeyboardMarkup(keyboard)
 
     async def get_llm_response(self, prompt: str, user_context: Dict = None) -> str:
+
+        language = user_context.get('language', 'english') if user_context else 'english'
+
         """Get a response from the Groq LLM API."""
         system_prompt = """You are a compassionate and supportive therapy chat bot. Your responses should be:
         1. Empathetic and understanding
         2. Encouraging but not dismissive of negative feelings
         3. Professional while maintaining a warm tone
-        4. Keep to at most 3-4 sentences per response
-        Never recommend medical advice or try to diagnose conditions. But give tips on how to overcome negative feelings."""
+        4. Keep to at most 2-3 sentences per response
+        Never recommend medical advice or try to diagnose conditions. But give tips on how to overcome negative feelings. Answer in {language}."""
         
         context = ""
         if user_context:
@@ -100,13 +116,33 @@ class TherapyBot:
         return fallback_responses["default"]
 
     async def start(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
-        """Start the conversation."""
-        response = await self.get_llm_response(
-            "Generate a warm welcome message for a new user starting therapy chat."
-        )
+        user_id = update.message.from_user.id
+        user_data[user_id] = {}
         await update.message.reply_text(
-            f"{response}\n\nHow are you feeling today? Would you like to tell me about your day?"
+            "Welcome! Please select your preferred language:\n"
+            "¡Bienvenido! Por favor, seleccione su idioma preferido:\n"
+            "Bienvenue! Veuillez sélectionner votre langue préférée:",
+            reply_markup=self.create_language_keyboard()
         )
+        return LANGUAGE_SELECTION
+    
+    async def handle_language_selection(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the language selection callback."""
+        query = update.callback_query
+        await query.answer()
+        
+        user_id = query.from_user.id
+        selected_language = query.data.split('_')[1]
+        user_data[user_id]['language'] = selected_language
+        
+        # Welcome messages in different languages
+        welcome_messages = {
+            'english': "How are you feeling today? Would you like to tell me about your day?",
+            'spanish': "¿Cómo te sientes hoy? ¿Te gustaría contarme sobre tu día?",
+            'french': "Comment vous sentez-vous aujourd'hui? Voulez-vous me parler de votre journée?"
+        }
+        
+        await query.edit_message_text(welcome_messages[selected_language])
         return INITIAL_CHECKIN
 
     async def handle_initial_checkin(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -137,7 +173,6 @@ class TherapyBot:
         
         # Update user data
         user_data[user_id]['mood_rating'] = mood_rating
-        
         # Categorize mood
         if mood_rating <= 4:
             user_data[user_id]['mood_category'] = 'sad'
@@ -217,7 +252,18 @@ class TherapyBot:
         
         return ConversationHandler.END
 
-
+    async def handle_language(self, update: Update, context: ContextTypes.DEFAULT_TYPE):
+        """Handle the user's language selection."""
+        user_id = update.message.from_user.id
+        language = update.message.text.lower()
+        
+        if language in ['english', 'spanish', 'french']:
+            user_data[user_id]['language'] = language
+            await update.message.reply_text(f"Language set to {language}.")
+        else:
+            await update.message.reply_text("Sorry, I don't support that language. Please choose English, Spanish, or French.")
+        
+        return ConversationHandler.END
 
     async def send_scheduled_followup(self, context: ContextTypes.DEFAULT_TYPE):
         """Send follow-up messages to users who were feeling down."""
@@ -253,18 +299,32 @@ def main():
     conv_handler = ConversationHandler(
         entry_points=[CommandHandler('start', bot.start)],
         states={
-            INITIAL_CHECKIN: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_initial_checkin)],
-            FEELING_SCALE: [CallbackQueryHandler(bot.handle_mood_button, pattern=r'^mood_\d+$')],
-            DAILY_REFLECTION: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_daily_reflection)],
-            ONGOING_CONVERSATION: [MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_ongoing_conversation)],
+            LANGUAGE_SELECTION: [
+                CallbackQueryHandler(bot.handle_language_selection, pattern=r'^lang_\w+$')
+            ],
+            INITIAL_CHECKIN: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_initial_checkin)
+            ],
+            FEELING_SCALE: [
+                CallbackQueryHandler(bot.handle_mood_button, pattern=r'^mood_\d+$')
+            ],
+            DAILY_REFLECTION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_daily_reflection)
+            ],
+            ONGOING_CONVERSATION: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, bot.handle_ongoing_conversation)
+            ],
         },
-        fallbacks=[CommandHandler('done', bot.handle_done)],  # User can type /done to end
+        fallbacks=[CommandHandler('done', bot.handle_done)],
     )
     
     application.add_handler(conv_handler)
     
+    # Add job queue for follow-ups
     job_queue = application.job_queue
-    job_queue.run_repeating(bot.send_scheduled_followup, interval=datetime.timedelta(hours=5), first=datetime.timedelta(seconds=10))
+    job_queue.run_repeating(bot.send_scheduled_followup, 
+                           interval=datetime.timedelta(hours=5), 
+                           first=datetime.timedelta(seconds=10))
     
     application.run_polling()
 
