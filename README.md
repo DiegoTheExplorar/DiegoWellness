@@ -11,9 +11,9 @@ A compassionate Telegram bot powered by Groq that provides emotional support and
 
 ## 🛠️ Tech Stack
 
-- Python 3.9
+- Python 3.12
 - python-telegram-bot
-- Groq API (LLM)
+- Groq API (mixtral-8x7b-32768)
 - Azure Container Registry
 - GitHub Actions for CI/CD
 
@@ -69,20 +69,13 @@ The repository includes GitHub Actions workflows for:
         3. French
         4. German
         5. Italian
-        6. Portuguese
-        7. Dutch
-        8. Chinese (Simplified and Traditional)
-        9. Japanese
-        10. Korean
-        11. Russian
-        12. Arabic
-        13. Hindi
 
 2. **Journaling Feature**
    - Allow users to maintain mood journals
    - Generate mood trends and insights
    - Export journal entries
    - Enhanced Memory
+   - Perhaps even some sort of RAG feature to enhance this
 
 3. **Wellness Resources**
    - Integrate breathing exercises
